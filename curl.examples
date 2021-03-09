@@ -1,0 +1,2 @@
+# POST
+curl -d '{"address": "mmBaoMGFv4zZj283GT3tf5orPVBDm4Aoyb","signature": "HxMw0ydRYXNaelc0zSh6O2zWvw2GuI8KFyFs2ZfzHqZmZ5OBhSZ90DzdqS839kkPqyo3opKF+mSmlktvwHTY3+I=", "star": {"name": 1} }' -H "Content-Type: application/json" -X POST http://localhost:9254/submitStar

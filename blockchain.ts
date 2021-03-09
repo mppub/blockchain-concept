@@ -1,6 +1,6 @@
 const {SHA256} = require('crypto-js');
 
-type BlockBody = any[];
+type BlockBody = any;
 
 interface IBlockData {
   height?: number;
@@ -12,6 +12,8 @@ interface IBlockData {
 
 interface IBlock extends IBlockData {
   getDataForHash: () => string;
+  validateBlocksHash: () => Promise<boolean>
+  getBody: () => Promise<object>
 }
 
 class Block implements IBlock {
@@ -27,6 +29,10 @@ class Block implements IBlock {
     }
   }
 
+  validateBlocksHash = async (): Promise<boolean> => {
+    return SHA256(this.getDataForHash()).toString() === this.hash;
+  }
+
   getDataForHash = (): string => {
     return JSON.stringify({
       timestamp: this.timestamp,
@@ -34,6 +40,15 @@ class Block implements IBlock {
       previousHash: this.previousHash,
       body: this.body
     });
+  }
+
+  getBody = async (decoded = true) => {
+    try {
+      return JSON.parse(Buffer.from(this.body, 'hex').toString())
+    }
+    catch (e) {
+      console.log('Error while parsing the body:', e)
+    }
   }
 }
 
@@ -43,12 +58,25 @@ interface IBlockchain {
 
 class BlockChain implements IBlockchain {
   blocks: IBlock[] = [];
-  
-  validate = (blocks?: IBlock[]): boolean => {
+
+  constructor(genesisMsg: string = 'c8486f507c304e5fc0b1a36cebfb92a0', blocks?: IBlock[]) {
+    if (blocks && blocks.length && this.validate(blocks)) {
+      this.blocks = blocks;
+    }
+    else {
+      this.addBlock({genesis: genesisMsg}).then((res) => {
+        console.log('success', res)
+      },(err) => {
+        throw new Error(JSON.stringify(err))
+      })
+    }
+  }
+
+  validate = async (blocks: IBlock[] = this.blocks): Promise<boolean> => {
     blocks = blocks && blocks.length ? blocks : this.blocks as IBlock[]
     for (let i = 1; i < blocks.length; i++) {
-      
-      if (blocks[i-1].hash !== blocks[i].previousHash || SHA256(blocks[i-1].getDataForHash()).toString() !== blocks[i].previousHash) {
+
+      if (blocks[i-1].hash !== blocks[i].previousHash || !(await blocks[i-1].validateBlocksHash())) {
         return false
       }
     }
@@ -56,12 +84,12 @@ class BlockChain implements IBlockchain {
     return true
   }
 
-  addBlock = (newBlockBody: BlockBody): number => {
+  addBlock = async (blockJsonData: BlockBody): Promise<number> => {
     const newBlockData: IBlockData = {
       timestamp: Date.now(),
       height: this.blocks.length,
       previousHash: this.blocks[this.blocks.length - 1]?.hash,
-      body: newBlockBody
+      body: Buffer.from(JSON.stringify(blockJsonData)).toString('hex')
     }
     newBlockData.hash = this.getHashOfBlock(newBlockData)
     const newBlock = new Block(newBlockData)
@@ -69,18 +97,12 @@ class BlockChain implements IBlockchain {
     return this.blocks.push(newBlock)
   }
 
-  constructor(blocks?: IBlock[]) {
-    if (blocks && blocks.length && this.validate(blocks)) {
-      this.blocks = blocks;
-    }
-    else {
-      this.addBlock(['hola caracola'])
-    }
-  }
-
-  getHashOfBlock = (blockData: IBlockData): string => {
-    return SHA256(JSON.stringify(blockData)).toString()
+  getHashOfBlock = (blockJsonData: IBlockData): string => {
+    return SHA256(JSON.stringify(blockJsonData)).toString()
   }
 }
 
-module.exports = BlockChain
+export {
+  BlockChain,
+  Block
+}
